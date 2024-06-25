@@ -27,3 +27,31 @@ smooth_step(k) = Base.Fix1(smooth_step, k)
 end
 
 (ramp::RampProtocol)(t) = get_deltas(ramp, t)
+
+## Rubens ramp
+sigmoid(x, x0, k) = 1 / (1 + exp(-k * (x - x0)))
+struct RubensRampProtocol{R,EM,HM,T}
+    rate::R
+    eps_max::EM
+    hop_max::HM
+    total_time::T
+end
+
+function (rr::RubensRampProtocol)(t)
+    t_final = 2 * rr.total_time
+    rate = rr.rate
+    hop_max = rr.hop_max
+    eps_max = rr.eps_max
+    t_current = t
+    Δ1 = hop_max * (sigmoid(t_current, t_final / 7, rate) - sigmoid(t_current, 2 * t_final / 7, rate) + sigmoid(t_current, 4 * t_final / 7, rate) - sigmoid(t_current, 5 * t_final / 7, rate))
+    Δ3 = hop_max * (sigmoid(t_current, 2 * t_final / 7, rate) - sigmoid(t_current, 3 * t_final / 7, rate) + sigmoid(t_current, 5 * t_final / 7, rate) - sigmoid(t_current, 6 * t_final / 7, rate))
+    Δ2 = eps_max * (sigmoid(-t_current, -1 * t_final / 7, rate) + sigmoid(t_current, 3 * t_final / 7, rate) - sigmoid(t_current, 4 * t_final / 7, rate) + sigmoid(t_current, 6 * t_final / 7, rate))
+    return (Δ1, Δ2, Δ3)
+end
+
+# function rubens_hamiltonian((eps, hop, delta, P))
+#     dotPs = (P[0, 1], P[2, 4], P[3, 5])
+#     sum(eps .* dotPs)
+#     hopPs = (P[1, 2], P[1, 3], P[4, 5])
+
+# end

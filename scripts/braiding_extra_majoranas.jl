@@ -23,7 +23,6 @@ else
     Matrix, Vector
 end
 ## Couplings
-N = length(keys(c))
 P = parity_operators(γ, p -> (mtype(p[2^(N-1)+1:end, 2^(N-1)+1:end])));
 ## Parameters
 u0 = vtype(collect(first(eachcol(eigen(Hermitian(P[0, 1] + P[2, 4] + P[3, 5]), 1:1).vectors))))
@@ -37,17 +36,24 @@ k = 1e1
 correction = 0
 tspan = (0.0, 2T)
 ramp = RampProtocol([1, 1, 1] .* Δmin, [1 / 3, 1 / 2, 1] .* Δmax, T, k)
+rubensramp = MajoranaBraiding.RubensRampProtocol(0.1, 1, 1, T)
 p = (ramp, ϵs, ζs, correction, P)
+pr = (rubensramp, ϵs, ζs, P)
 H = ham_with_corrections
 H! = ham_with_corrections!
+Hr = MajoranaBraiding.ham
+# H! = ham_with_corrections!
+M = get_op(H, H!, p)
+Mr = get_op(Hr, H!, pr)
 
 ##
 prob = ODEProblem{inplace}(M, u0, tspan, p)
+prob = ODEProblem{inplace}(Mr, u0, tspan, pr)
 ts = range(0, tspan[2], 1000)
-deltas = stack([ramp(t) for t in ts])'
+deltas = stack([rubensramp(t) for t in ts])'
 delta_plot = plot(ts, deltas, label=["Δ01" "Δ02" "Δ03"], xlabel="t", ls=[:solid :dash :dot], lw=3)
-spectrum = stack([eigvals(H(p, t)) for t in ts])'
-plot(plot(mapslices(v -> v[2:end] .- v[1], spectrum, dims=2), ls=[:solid :dash :dot], title="Eᵢ-E₀", labels=[1, 2, 3]', yscale=:log10), delta_plot, layout=(2, 1), lw=2, frame=:box)
+spectrum = stack([eigvals(Hr(pr, t)) for t in ts])'
+plot(plot(mapslices(v -> v[2:end] .- v[1], spectrum, dims=2), ls=[:solid :dash :dot], title="Eᵢ-E₀", labels=[1, 2, 3]', yscale=:log10, ylims=(1e-10, 1e2)), delta_plot, layout=(2, 1), lw=2, frame=:box)
 ## Solve the system
 @time sol = solve(prob, Tsit5(), saveat=ts, abstol=1e-6, reltol=1e-6, tstops=ts);
 plot(ts, [1 .- norm(sol(t)) for t in ts], label="norm error", xlabel="t")
